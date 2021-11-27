@@ -5,6 +5,7 @@ import numpy as np
 import geopandas as gpd
 import streamlit as st
 import folium as fl
+from folium.plugins import FastMarkerCluster,MarkerCluster,MiniMap
 import streamlit_folium as sf
 import streamlit.components.v1 as components
 import branca.colormap as cm
@@ -13,6 +14,7 @@ import pathlib
 import zipfile
 import requests
 from streamlit_folium import folium_static
+import time
 
 STREAMLIT_STATIC_PATH = pathlib.Path(st.__path__[0]) / "static"
 print(STREAMLIT_STATIC_PATH)
@@ -52,7 +54,7 @@ def save_response_content(response, destination):
             if chunk: # filter out keep-alive new chunks
                 f.write(chunk)
 
-@st.cache
+
 def get_districtsgdf():
 
     out_zip = os.path.join(DOWNLOADS_PATH, "Water_Districts.zip")
@@ -64,8 +66,8 @@ def get_districtsgdf():
     gdf = gpd.read_file(out_zip.replace("zip", "shp"))
 
     return gdf  
-@st.cache
-def get_countiesgdf():
+
+def get_countiesgdf(allow_output_mutation=True):
 
     out_zip = os.path.join(DOWNLOADS_PATH, "CaliforniaCounties.zip")
     #https://drive.google.com/file/d/1-J2JhrRHazBfbM7M_pwPB5D2XWGIthHJ/view?usp=sharing
@@ -76,7 +78,7 @@ def get_countiesgdf():
     gdf = gpd.read_file(out_zip.replace("zip", "shp"))
 
     return gdf                          
-@st.cache
+@st.cache(allow_output_mutation=True)
 def get_county_dict():
     # returns a dictonary of lists of California regions: Southern, Northern and Midsecton
 
@@ -85,7 +87,11 @@ def get_county_dict():
                    'Riverside', 'San Bernardino', 'San Diego', 
                    'San Luis Obispo', 'Santa Barbara', 'Ventura']
     AdjNoCalCountyList = ['Monterey', "Fresno", 'Kings', "San Benito",
-                      "Tulare", "Madera", "Merced"]
+                      "Tulare"]
+    MidCalCounties = ['Monterey', "Fresno", 'Kings', "San Benito",
+                     "Tulare", 'Inyo',  'Kern', 'San Bernardino',
+                      'Los Angeles', 'San Luis Obispo',
+                      'Santa Barbara', 'Ventura']                  
 
     MidSectionCACountyList = SoCalCountyList + AdjNoCalCountyList
 
@@ -108,12 +114,13 @@ def get_county_dict():
          "Southern California" : SoCalCountyList,
          "Northern California" : NorthCalCountyList,
          "California Mid-Section" : MidSectionCACountyList,
-         "Central California" : CentralCalCountyList
+         "Central California" : CentralCalCountyList,
+         "Mid-California Counties" : MidCalCounties
     }
     
     return ca_county_dict
 
-def get_gdf(gdf, cnty_list):
+def get_counties(gdf, cnty_list):
     boolean_series = gdf.NAME.isin(cnty_list)
     cnty_gdf = gdf[boolean_series].reset_index(drop=True)
     return cnty_gdf
@@ -123,7 +130,7 @@ def get_water_districts(waterdistict_gdf, county_selections_gdf):
     waterdistict_gdf_utm10 = waterdistict_gdf.to_crs( "epsg:26910")
     county_selections_gdf_utm10 = county_selections_gdf.to_crs( "epsg:26910")
     wd_in_selected_counties = waterdistict_gdf_utm10.intersects(county_selections_gdf_utm10.geometry.unary_union)
-    waterdistict_gdf_utm10[wd_in_selected_counties]
+    #waterdistict_gdf_utm10[wd_in_selected_counties]
     
     return  waterdistict_gdf_utm10[wd_in_selected_counties] 
 
@@ -135,6 +142,33 @@ def get_random(gdf, n):
     gdf['Color'] = np.random.randint(1, n, gdf.shape[0]).astype(float)
     #print(gdf['Color'].head())
     return gdf
+
+def add_counties(calmap,gdf):
+    
+    fl.GeoJson(gdf, name='California Counties', control=True,
+               style_function = lambda x: {"weight":0.5, 
+                            'color':'grey',
+                            'fillColor':'transparent',
+#                            'fillColor':colormap_county(x['properties']['Active']), 
+                            'fillOpacity':0.5
+               },
+               highlight_function = lambda x: {'fillColor': '#000000', 
+                                'color':'#000000', 
+                                'fillOpacity': 0.75, 
+                                'weight': 0.1
+               },
+               
+               tooltip=fl.GeoJsonTooltip(
+                   fields=['NAME'],
+                   aliases=['County:'],
+                   labels=True,
+                   localize=True
+               ),
+               
+           
+              ).add_to(calmap)
+    return calmap
+
 
 def add_districts(calmap, gdf):
 
@@ -174,27 +208,125 @@ def add_districts(calmap, gdf):
     
     return calmap
 
+# Read data and cleans - pit data
+def get_pits_df():
+    
+    df1 = pd.read_csv('../data/CA_WastewaterPits_Fractracker/CA_WastewaterPits_FracTracker.csv')
+    df1['Pit Count'].replace({"Unknown":1},inplace=True)
+    #df1.head()
+    
+    df2 = pd.read_csv('../data/CA_WastewaterPits_Fractracker/CA_WastewaterPits_Reviseddataset_FracTracker.csv')
+    #replace Pit Count "Unknown" to 1
+    # drop Operator.1 from df2
+    df2.drop('Operator.1',axis=1,inplace=True)
+    #print(df2.columns)
+    
+    frames = [df1, df2]
+    df = pd.concat(frames)
+    #replace Pit Count "Unknown" to 1
+    df['Pit Count'].replace({"Unknown":1},inplace=True)
+    #replace newlines with space
+    df['Operator'].replace(r'\n',' ', regex=True,inplace=True) 
+    #Compute number of sites
+    df['Sites'] = df['Pit Count'].astype(int)
+    return df
 
+#aggregate pit df and return a list of top n Operators
+def get_pits_top_n(df, n):
+    
+    pit_hist = df.groupby('Operator').sum().sort_values(by='Sites',ascending=False)
+    pitlist = pit_hist['Sites'].index.values.tolist()
+    
+    return pitlist[0:n]
+
+# getgdf (df, col_name, col_value)
+# helper function
+
+def getgdf(df, column_name, column_value):
+    # input a dataframe, a column and column value
+    # returns -  geopandas dataframe with lat/lon
+    odf  =  df[df[column_name] == column_value]
+    odfgpd = gpd.GeoDataFrame(odf,geometry=gpd.points_from_xy(odf.Longitude, odf.Latitude))
+    return(odfgpd)
+
+def get_pit_markers(mlist, df, calmap, zoom_max):
+    
+    for operator in mlist:
+        gdfpit = getgdf(df, "Operator", operator)
+        gdfpit.set_crs('EPSG:4269',inplace=True)
+        marker_name = operator 
+        opmarker = MarkerCluster(name=marker_name,overlay=True,control=True,disableClusteringAtZoom=zoom_max,
+                              spiderfyOnMaxZoom=zoom_max)
+
+        # Note that CircleMarkers are saved to the MarkerCluster layer, not the map
+        gdfpit.apply(lambda row:
+                        fl.CircleMarker(name='Pit Markers', control=True, zindexoffset=1000,
+                                  location=[row['geometry'].y, row['geometry'].x],
+                                  radius=5,
+                                  color='orange',
+                                  fill=True,
+                                  fill_color='yellow',
+                                  popup=row['Operator'],
+                            
+               highlight_function = lambda x: {'fillColor': '#000000', 
+                                'color':'#000000', 
+                                'fillOpacity': 0.25, 
+                                'weight': 0.1
+               },
+               
+               tooltip = "Operator: %s<br>Pits: %s" % (row['Operator'], row['Sites'])             
+
+                                 ).add_to(opmarker), 
+                         axis=1)
+
+
+               
+        #Add the Markeluster layer to the map
+        opmarker.add_to(calmap)
+        
+    return(calmap)
+              
 
 def main():
+    reload_data = False
+    df_pits = pd.DataFrame() 
+    df_pits["operator"] = None
+    file = st.file_uploader("Choose a file")
+    if file is not None:
+        file.seek(0)
+        
+        df_pits = pd.read_csv(file, low_memory=False)
+        with st.spinner('Reading CSV File...'):
+            time.sleep(5)
+            st.success('Done!')
+            st.write(df_pits.head())
+            st.write(df_pits.shape)
+    
     waterdistrict_gdf = get_districtsgdf()
     ca_counties_gdf = get_countiesgdf()
+    
     county_dict = get_county_dict()
     
-    selection = "California Mid-Section"
-    county_selections_gdf = get_gdf(ca_counties_gdf, county_dict[selection])
+    selection = "Mid-California Counties"
+    county_selections_gdf = get_counties(ca_counties_gdf, county_dict[selection])
     water_dist_selection_gdf = get_water_districts(waterdistrict_gdf, county_selections_gdf)
-    st.write(water_dist_selection_gdf.head())
+    #df_pits =  get_pits_df()
+    pit_list = get_pits_top_n(df_pits, 3)
+
 
 
     
-    xmap = fl.Map(location=[37.7794,-122.4194],
+    CAwaterDistrictMap = fl.Map(location=[37.7794,-122.4194],
                 zoom_start=6,tiles=None)
-    fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(xmap)
-    folium_static(xmap) 
-    CAwaterDistrictMap = add_districts(xmap,water_dist_selection_gdf)
+    fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(CAwaterDistrictMap)
+    #folium_static(xmap) 
+    
+    CAwaterDistrictMap = add_counties(CAwaterDistrictMap,ca_counties_gdf)
+    CAwaterDistrictMap = add_districts(CAwaterDistrictMap,water_dist_selection_gdf)
+    CAwaterDistrictMap = get_pit_markers(pit_list, df_pits, CAwaterDistrictMap, zoom_max = 15)
+    fl.LayerControl(collapsed=False).add_to(CAwaterDistrictMap)
     folium_static(CAwaterDistrictMap) 
-    CAwaterDistrictMap.save("CAMidSection.html")
+    CAwaterDistrictMap.save("SoCal.html")
 
     
 
