@@ -302,31 +302,27 @@ def main():
             st.write(df_pits.head())
             st.write(df_pits.shape)
     
-    waterdistrict_gdf = get_districtsgdf()
-    ca_counties_gdf = get_countiesgdf()
+        waterdistrict_gdf = get_districtsgdf()
+        ca_counties_gdf = get_countiesgdf()
     
-    county_dict = get_county_dict()
+        county_dict = get_county_dict()
     
-    selection = "Mid-California Counties"
-    county_selections_gdf = get_counties(ca_counties_gdf, county_dict[selection])
-    water_dist_selection_gdf = get_water_districts(waterdistrict_gdf, county_selections_gdf)
-    #df_pits =  get_pits_df()
-    pit_list = get_pits_top_n(df_pits, 3)
+        selection = "Mid-California Counties"
+        county_selections_gdf = get_counties(ca_counties_gdf, county_dict[selection])
+        water_dist_selection_gdf = get_water_districts(waterdistrict_gdf, county_selections_gdf)
+        pit_list = get_pits_top_n(df_pits, 3)
 
-
-
-    
-    CAwaterDistrictMap = fl.Map(location=[37.7794,-122.4194],
+        CAwaterDistrictMap = fl.Map(location=[35.37,-119.02],
                 zoom_start=6,tiles=None)
-    fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(CAwaterDistrictMap)
-    #folium_static(xmap) 
+        fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(CAwaterDistrictMap)
     
-    CAwaterDistrictMap = add_counties(CAwaterDistrictMap,ca_counties_gdf)
-    CAwaterDistrictMap = add_districts(CAwaterDistrictMap,water_dist_selection_gdf)
-    CAwaterDistrictMap = get_pit_markers(pit_list, df_pits, CAwaterDistrictMap, zoom_max = 15)
-    fl.LayerControl(collapsed=False).add_to(CAwaterDistrictMap)
-    folium_static(CAwaterDistrictMap) 
-    CAwaterDistrictMap.save("SoCal.html")
+    
+        CAwaterDistrictMap = add_counties(CAwaterDistrictMap,ca_counties_gdf)
+        CAwaterDistrictMap = add_districts(CAwaterDistrictMap,water_dist_selection_gdf)
+        CAwaterDistrictMap = get_pit_markers(pit_list, df_pits, CAwaterDistrictMap, zoom_max = 15)
+        fl.LayerControl(collapsed=False).add_to(CAwaterDistrictMap)
+        folium_static(CAwaterDistrictMap) 
+        CAwaterDistrictMap.save("SoCal.html")
 
     
 
