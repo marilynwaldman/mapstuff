@@ -299,8 +299,7 @@ def main():
         with st.spinner('Reading CSV File...'):
             time.sleep(5)
             st.success('Done!')
-            st.write(df_pits.head())
-            st.write(df_pits.shape)
+            
     
         waterdistrict_gdf = get_districtsgdf()
         ca_counties_gdf = get_countiesgdf()
