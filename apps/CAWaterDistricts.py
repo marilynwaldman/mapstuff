@@ -285,17 +285,18 @@ def main():
     water_dist_selection_gdf = get_water_districts(waterdistrict_gdf, county_selections_gdf)
     pit_list = get_pits_top_n(df_pits, 3)
 
-    CAwaterDistrictMap = fl.Map(location=[35.37,-119.02],
+    CAwaterDistrictMap = fl.Map(title = "California Pits",location=[35.37,-119.02],
                 zoom_start=6,tiles=None)
     fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(CAwaterDistrictMap)
     
-    
+
     CAwaterDistrictMap = add_counties(CAwaterDistrictMap,ca_counties_gdf)
     CAwaterDistrictMap = add_districts(CAwaterDistrictMap,water_dist_selection_gdf)
     CAwaterDistrictMap = get_pit_markers(pit_list, df_pits, CAwaterDistrictMap, zoom_max = 15)
     fl.LayerControl(collapsed=True).add_to(CAwaterDistrictMap)
+    st.title("California Pits and Ponds")
     folium_static(CAwaterDistrictMap) 
-    CAwaterDistrictMap.save("SoCal.html")
+    CAwaterDistrictMap.save("CenCal2.html")
 
     
 
