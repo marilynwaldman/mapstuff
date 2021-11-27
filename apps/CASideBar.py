@@ -211,8 +211,24 @@ def add_districts(calmap, gdf):
 # Read data and cleans - pit data
 def get_pits_df():
     
-    df = pd.read_csv('../data/CA_WastewaterPits_Fractracker/pits.csv')
+    df1 = pd.read_csv('../data/CA_WastewaterPits_Fractracker/CA_WastewaterPits_FracTracker.csv')
+    df1['Pit Count'].replace({"Unknown":1},inplace=True)
+    #df1.head()
     
+    df2 = pd.read_csv('../data/CA_WastewaterPits_Fractracker/CA_WastewaterPits_Reviseddataset_FracTracker.csv')
+    #replace Pit Count "Unknown" to 1
+    # drop Operator.1 from df2
+    df2.drop('Operator.1',axis=1,inplace=True)
+    #print(df2.columns)
+    
+    frames = [df1, df2]
+    df = pd.concat(frames)
+    #replace Pit Count "Unknown" to 1
+    df['Pit Count'].replace({"Unknown":1},inplace=True)
+    #replace newlines with space
+    df['Operator'].replace(r'\n',' ', regex=True,inplace=True) 
+    #Compute number of sites
+    df['Sites'] = df['Pit Count'].astype(int)
     return df
 
 #aggregate pit df and return a list of top n Operators
@@ -272,30 +288,40 @@ def get_pit_markers(mlist, df, calmap, zoom_max):
               
 
 def main():
-    
-    
+    reload_data = False
+    df_pits = pd.DataFrame() 
+    df_pits["operator"] = None
+    file = st.file_uploader("Choose a file")
+    if file is not None:
+        file.seek(0)
+        
+        df_pits = pd.read_csv(file, low_memory=False)
+        with st.spinner('Reading CSV File...'):
+            time.sleep(5)
+            st.success('Done!')
             
     
-    waterdistrict_gdf = get_districtsgdf()
-    ca_counties_gdf = get_countiesgdf()
-    df_pits = get_pits_df()
-    county_dict = get_county_dict()
-    selection = "Mid-California Counties"
-    county_selections_gdf = get_counties(ca_counties_gdf, county_dict[selection])
-    water_dist_selection_gdf = get_water_districts(waterdistrict_gdf, county_selections_gdf)
-    pit_list = get_pits_top_n(df_pits, 3)
+        waterdistrict_gdf = get_districtsgdf()
+        ca_counties_gdf = get_countiesgdf()
+    
+        county_dict = get_county_dict()
+    
+        selection = "Mid-California Counties"
+        county_selections_gdf = get_counties(ca_counties_gdf, county_dict[selection])
+        water_dist_selection_gdf = get_water_districts(waterdistrict_gdf, county_selections_gdf)
+        pit_list = get_pits_top_n(df_pits, 3)
 
-    CAwaterDistrictMap = fl.Map(location=[35.37,-119.02],
+        CAwaterDistrictMap = fl.Map(location=[35.37,-119.02],
                 zoom_start=6,tiles=None)
-    fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(CAwaterDistrictMap)
+        fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(CAwaterDistrictMap)
     
     
-    CAwaterDistrictMap = add_counties(CAwaterDistrictMap,ca_counties_gdf)
-    CAwaterDistrictMap = add_districts(CAwaterDistrictMap,water_dist_selection_gdf)
-    CAwaterDistrictMap = get_pit_markers(pit_list, df_pits, CAwaterDistrictMap, zoom_max = 15)
-    fl.LayerControl(collapsed=True).add_to(CAwaterDistrictMap)
-    folium_static(CAwaterDistrictMap) 
-    CAwaterDistrictMap.save("SoCal.html")
+        CAwaterDistrictMap = add_counties(CAwaterDistrictMap,ca_counties_gdf)
+        CAwaterDistrictMap = add_districts(CAwaterDistrictMap,water_dist_selection_gdf)
+        CAwaterDistrictMap = get_pit_markers(pit_list, df_pits, CAwaterDistrictMap, zoom_max = 15)
+        fl.LayerControl(collapsed=False).add_to(CAwaterDistrictMap)
+        folium_static(CAwaterDistrictMap) 
+        CAwaterDistrictMap.save("SoCal.html")
 
     
 
