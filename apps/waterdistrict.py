@@ -32,7 +32,7 @@ def download_file_from_google_drive(id, destination):
         params = { 'id' : id, 'confirm' : token }
         response = session.get(URL, params = params, stream = True)
 
-    save_response_content(response, destination)    
+    save_response_content(response,destination)    
 
 def get_confirm_token(response):
     for key, value in response.cookies.items():
@@ -50,7 +50,7 @@ def save_response_content(response, destination):
                 f.write(chunk)
 
 
-
+@st.cache
 def get_districtsgdf():
 
     out_zip = os.path.join(DOWNLOADS_PATH, "Water_Districts.zip")
@@ -112,8 +112,8 @@ def add_districts(calmap, gdf):
 
 def main():
     waterdistrict_gdf = get_districtsgdf()
-    #st.write(waterdistrict_gdf.head(500))
-    waterdistrict_gdf = waterdistrict_gdf.head(2500)
+    #st.write(waterdistrict_gdf)
+    waterdistrict_gdf = waterdistrict_gdf.head(2700)
     xmap = fl.Map(location=[37.7794,-122.4194],
                 zoom_start=6,tiles=None)
     fl.TileLayer('cartodbpositron',name='BackGround',control=False).add_to(xmap)
